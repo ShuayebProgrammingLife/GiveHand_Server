@@ -106,9 +106,29 @@ app.post("/events", verifyJWT, async (req: Request, res: Response) => {
   res.status(201).json(result);
 });
 
-app.get("/my-events", verifyJWT, async () =>{
-  
-})
+app.get("/my-events", verifyJWT, async (_req: Request, res: Response) => {
+  res.json(
+    await events.find({ creatorEmail: getUser(res).email }).sort({ eventDate: 1 }).toArray()
+  );
+});
+
+app.put("/events/:id", verifyJWT, async (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (typeof id !== "string" || !ObjectId.isValid(id))
+    return res.status(400).json({ message: "Invalid event id" });
+  const { title, description, eventType, thumbnail, location, eventDate } = req.body;
+  if (new Date(eventDate) <= new Date())
+    return res.status(400).json({ message: "Date obossoi future e hote hobe" });
+  const result = await events.updateOne(
+    { _id: new ObjectId(id), creatorEmail: getUser(res).email },
+    { $set: { title, description, eventType, thumbnail, location, eventDate: new Date(eventDate) } }
+  );
+  if (!result.matchedCount){
+    return res.status(403).json({ message: "Eta tomar event na" });
+  }
+  res.json(result);
+});
+
 
 app.get("/", (_req, res) => res.send("CommunityKit server cholche"));
 
