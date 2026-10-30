@@ -40,23 +40,23 @@ const JWKS = createRemoteJWKSet(
   new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
 );
 
-const verifyJWT = async(req: Request, res: Response, next: NextFunction) =>{
+const verifyJWT = async (req: Request, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) {
     return res.status(401).json({ message: "Unauthorized: No token provided" });
   }
-  try{
+  try {
     const { payload } = await jwtVerify(token, JWKS);
-    if(typeof payload.email !== "string"){
+    if (typeof payload.email !== "string") {
       return res.status(401).json({ message: "Unauthorized: No Email found in token" });
     }
     res.locals.user = payload as AuthUser;
     next();
   }
-    catch{
-      res.status(401).json({ message: "Unauthorized: Invalid token" });
-    }
-  };
+  catch {
+    res.status(401).json({ message: "Unauthorized: Invalid token" });
+  }
+};
 
 const getUser = (res: Response) => res.locals.user as AuthUser;
 
@@ -78,6 +78,37 @@ app.get("/events", async (req: Request, res: Response) => {
   res.json(result);
 });
 
+app.get("/events/:id", async (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (typeof id !== "string" || !ObjectId.isValid(id)) {
+    return res.status(400).json({
+      message: "Invalid event id"
+    });
+  }
+  const event = await events.findOne({ _id: new ObjectId(id) });
+  if (!event) return res.status(404).json({ message: "Event pawa jayni" });
+  res.json(event);
+});
+
+// Private
+app.post("/events", verifyJWT, async (req: Request, res: Response) => {
+  const { title, description, eventType, thumbnail, location, eventDate } = req.body;
+  if (!title || !description || !eventType || !thumbnail || !location || !eventDate)
+    return res.status(400).json({ message: "Shob field dite hobe" });
+  if (new Date(eventDate) <= new Date())
+    return res.status(400).json({ message: "Date obossoi future e hote hobe" });
+  const result = await events.insertOne({
+    title, description, eventType, thumbnail, location,
+    eventDate: new Date(eventDate),
+    creatorEmail: getUser(res).email,
+    createdAt: new Date(),
+  });
+  res.status(201).json(result);
+});
+
+app.get("/my-events", verifyJWT, async () =>{
+  
+})
 
 app.get("/", (_req, res) => res.send("CommunityKit server cholche"));
 
