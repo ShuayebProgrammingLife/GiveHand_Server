@@ -167,7 +167,7 @@ app.get("/joined", verifyJWT, async (_req: Request, res: Response) => {
   );
 });
 
-app.get("/", (_req, res) => res.send("CommunityKit server cholche"));
+app.get("/", (_req, res) => res.send("CommunityKit server is Running"));
 
 await client.connect();
 console.log("MongoDB connected");
