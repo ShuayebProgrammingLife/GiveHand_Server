@@ -123,12 +123,49 @@ app.put("/events/:id", verifyJWT, async (req: Request, res: Response) => {
     { _id: new ObjectId(id), creatorEmail: getUser(res).email },
     { $set: { title, description, eventType, thumbnail, location, eventDate: new Date(eventDate) } }
   );
-  if (!result.matchedCount){
+  if (!result.matchedCount) {
     return res.status(403).json({ message: "Eta tomar event na" });
   }
   res.json(result);
 });
 
+app.delete("/events/:id", verifyJWT, async (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (typeof id !== "string" || !ObjectId.isValid(id))
+    return res.status(400).json({ message: "Invalid event id" });
+  const result = await events.deleteOne({
+    _id: new ObjectId(id),
+    creatorEmail: getUser(res).email,
+  });
+  if (!result.deletedCount) return res.status(403).json({ message: "Eta tomar event na" });
+  res.json(result);
+});
+
+app.post("/join", verifyJWT, async (req: Request, res: Response) => {
+  const { eventId } = req.body;
+  if (!ObjectId.isValid(eventId))
+    return res.status(400).json({ message: "Invalid event id" });
+  const event = await events.findOne({ _id: new ObjectId(eventId) });
+  if (!event) return res.status(404).json({ message: "Event pawa jayni" });
+  const user = getUser(res);
+  if (await joined.findOne({ eventId, userEmail: user.email }))
+    return res.status(409).json({ message: "Tumi age e join koreso" });
+  const result = await joined.insertOne({
+    eventId,
+    userEmail: user.email,
+    userName: user.name ?? "",
+    event,
+    eventDate: event.eventDate,
+    joinedAt: new Date(),
+  });
+  res.status(201).json(result);
+});
+
+app.get("/joined", verifyJWT, async (_req: Request, res: Response) => {
+  res.json(
+    await joined.find({ userEmail: getUser(res).email }).sort({ eventDate: 1 }).toArray()
+  );
+});
 
 app.get("/", (_req, res) => res.send("CommunityKit server cholche"));
 
