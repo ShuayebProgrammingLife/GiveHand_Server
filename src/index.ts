@@ -31,7 +31,7 @@ app.use(cors({ origin: process.env.CLIENT_URL }));
 app.use(express.json());
 
 const client = new MongoClient(process.env.MONGODB_URI as string);
-const db = client.db("communitykit");
+const db = client.db("givehand");
 const events = db.collection<EventDoc>("events");
 const joined = db.collection<JoinedDoc>("joined");
 
@@ -109,9 +109,10 @@ app.get("/events", async (req: Request, res: Response) => {
   if (type) query.eventType = type;
   if (search) query.title = { $regex: escapeRegex(search), $options: "i" };
 
+  const order = req.query.order === "desc" ? -1 : 1;
   const result = await events
     .find(query)
-    .sort({ eventDate: 1 })
+    .sort({ eventDate: order })
     .limit(Number(limit) || 0)
     .toArray();
   res.json(result);
@@ -129,6 +130,16 @@ app.get("/events/:id", async (req: Request, res: Response) => {
     return;
   }
   res.json(event);
+});
+
+app.get("/stats", async (_req: Request, res: Response) => {
+  const now = new Date();
+  const [upcomingEvents, completedEvents, totalParticipants] = await Promise.all([
+    events.countDocuments({ eventDate: { $gte: now } }),
+    events.countDocuments({ eventDate: { $lt: now } }),
+    joined.countDocuments(),
+  ]);
+  res.json({ upcomingEvents, completedEvents, totalParticipants });
 });
 
 // ---------- Private routes ----------
@@ -227,6 +238,36 @@ app.post("/join", verifyJWT, async (req: Request, res: Response) => {
     }
     throw error;
   }
+});
+
+app.get("/join/:eventId", verifyJWT, async (req: Request, res: Response) => {
+  const id = parseId(req.params.eventId);
+  if (!id) {
+    res.status(400).json({ message: "Invalid event id" });
+    return;
+  }
+  const exists = await joined.findOne({
+    eventId: id.toString(),
+    userEmail: getUser(res).email,
+  });
+  res.json({ joined: Boolean(exists) });
+});
+
+app.delete("/join/:eventId", verifyJWT, async (req: Request, res: Response) => {
+  const id = parseId(req.params.eventId);
+  if (!id) {
+    res.status(400).json({ message: "Invalid event id" });
+    return;
+  }
+  const result = await joined.deleteOne({
+    eventId: id.toString(),
+    userEmail: getUser(res).email,
+  });
+  if (!result.deletedCount) {
+    res.status(404).json({ message: "You have not joined this event" });
+    return;
+  }
+  res.json(result);
 });
 
 app.get("/joined", verifyJWT, async (_req: Request, res: Response) => {
