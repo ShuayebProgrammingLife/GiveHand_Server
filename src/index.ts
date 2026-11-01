@@ -102,6 +102,18 @@ app.get("/", (_req: Request, res: Response) => {
   res.send("CommunityKit server is running");
 });
 
+// Upcoming event types with counts (for dynamic filter buttons)
+app.get("/event-types", async (_req: Request, res: Response) => {
+  const result = await events
+    .aggregate<{ _id: string; count: number }>([
+      { $match: { eventDate: { $gte: new Date() } } },
+      { $group: { _id: "$eventType", count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+    ])
+    .toArray();
+  res.json(result.map((item) => ({ type: item._id, count: item.count })));
+});
+
 // Upcoming events only (past events are hidden)
 app.get("/events", async (req: Request, res: Response) => {
   const { limit, type, search } = req.query as Record<string, string | undefined>;
