@@ -45,6 +45,15 @@ const str = (value: unknown): string =>
 const escapeRegex = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// blood DONATION => Blood Donation, max 30 char
+const normalizeType = (value: string): string =>
+  value
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 30)
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 type ParsedEvent =
   | { error: string }
   | { data: Omit<EventDoc, "creatorEmail" | "createdAt"> };
@@ -52,9 +61,10 @@ type ParsedEvent =
 const parseEventBody = (body: Record<string, unknown> | undefined): ParsedEvent => {
   const title = str(body?.title);
   const description = str(body?.description);
-  const eventType = str(body?.eventType);
+  const eventType = normalizeType(str(body?.eventType));
   const thumbnail = str(body?.thumbnail);
   const location = str(body?.location);
+  
 
   if (!title || !description || !eventType || !thumbnail || !location) {
     return { error: "All fields are required" };
@@ -99,7 +109,7 @@ const getUser = (res: Response) => res.locals.user as AuthUser;
 
 // ---------- Public routes ----------
 app.get("/", (_req: Request, res: Response) => {
-  res.send("CommunityKit server is running");
+  res.send("GiveHand server is running");
 });
 
 // Upcoming event types with counts (for dynamic filter buttons)
