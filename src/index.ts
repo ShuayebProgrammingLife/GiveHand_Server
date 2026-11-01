@@ -223,6 +223,7 @@ app.delete("/events/:id", verifyJWT, async (req: Request, res: Response) => {
     res.status(403).json({ message: "You can only delete your own events" });
     return;
   }
+  await joined.deleteMany({ eventId: id.toString() });
   res.json(result);
 });
 
@@ -294,8 +295,28 @@ app.delete("/join/:eventId", verifyJWT, async (req: Request, res: Response) => {
 
 app.get("/joined", verifyJWT, async (_req: Request, res: Response) => {
   const result = await joined
-    .find({ userEmail: getUser(res).email })
-    .sort({ eventDate: 1 })
+    .aggregate([
+      { $match: { userEmail: getUser(res).email } },
+      { $addFields: { eventObjectId: { $toObjectId: "$eventId" } } },
+      {
+        $lookup: {
+          from: "events",
+          localField: "eventObjectId",
+          foreignField: "_id",
+          as: "liveEvent",
+        },
+      },
+      { $unwind: "$liveEvent" },
+      {
+        $project: {
+          _id: 1,
+          eventId: 1,
+          joinedAt: 1,
+          event: "$liveEvent",
+        },
+      },
+      { $sort: { "event.eventDate": 1 } },
+    ])
     .toArray();
   res.json(result);
 });
